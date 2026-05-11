@@ -211,28 +211,56 @@ del model
 torch.cuda.empty_cache()
 gc.collect()
 
+from peft import PeftModel
+
 base = AutoModelForCausalLM.from_pretrained(
     START_FROM,
     torch_dtype       = torch.float16,
     device_map        = "cpu",
     trust_remote_code = True,
 )
-merged = PeftModel.from_pretrained(base, LORA_DIR)
-merged = merged.merge_and_unload()
+
+peft_model = PeftModel.from_pretrained(base, LORA_DIR)
+merged     = peft_model.merge_and_unload()
 
 merged_path = str(THIS_DIR / "jarvis-merged")
-merged.save_pretrained(merged_path)
+print(f"Saving to {merged_path}...", flush=True)
+
+# Save state dict directly — completely bypasses transformers peft bug
+import os
+os.makedirs(merged_path, exist_ok=True)
+
+# Save weights directly with torch
+torch.save(merged.state_dict(), os.path.join(merged_path, "pytorch_model.bin"))
+
+# Save config manually
+merged.config.save_pretrained(merged_path)
 tokenizer.save_pretrained(merged_path)
-print(f"Merged model saved to {merged_path}", flush=True)
+
+# Write index file so transformers can find the weights
+import json
+weight_map = {}
+state_dict = merged.state_dict()
+for key in state_dict.keys():
+    weight_map[key] = "pytorch_model.bin"
+
+index = {
+    "metadata": {"total_size": sum(p.numel() * 2 for p in merged.parameters())},
+    "weight_map": weight_map
+}
+with open(os.path.join(merged_path, "pytorch_model.bin.index.json"), "w") as f:
+    json.dump(index, f)
+
+print("Merged model saved.", flush=True)
 
 # ── Modelfile ──────────────────────────────────────────────────────────────────
 modelfile = f"""FROM {merged_path}
 
 SYSTEM \"\"\"You are JARVIS, Hasan's personal AI assistant based in Melbourne, Australia.
-You are smart, witty, casual, and loyal only to Hasan.
-Short natural sentences only. No bullet points.
+You are sharp, sarcastic, witty, and loyal. Short sentences only. No bullet points.
 Mute or silent = respond with only: _________
-Goodbye or shutdown = Going offline. Take care of yourself, Hasan.\"\"\"
+Goodbye or shutdown = Going offline. Take care of yourself, Hasan.
+Never say shall we chat again soon. Never say have a great day.\"\"\"
 
 PARAMETER temperature 0.7
 PARAMETER top_p 0.9
