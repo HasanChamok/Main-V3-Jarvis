@@ -18,7 +18,8 @@ WEATHER_CITY = "Melbourne"
 WEATHER_URL  = "https://wttr.in/Melbourne?format=%C+%t+%h+%w"
 
 # ── LLM ───────────────────────────────────────────────────────────────────────
-OLLAMA_MODEL = "llama3.2"   # change to "jarvis" after first fine-tune
+# OLLAMA_MODEL = "llama3.2"   # change to "jarvis" after first fine-tune
+OLLAMA_MODEL = "jarvis"
 OLLAMA_HOST  = "http://localhost:11434"
 
 # ── Speech Recognition ─────────────────────────────────────────────────────────

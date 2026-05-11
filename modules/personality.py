@@ -1,7 +1,6 @@
 """
 modules/personality.py
-Makes JARVIS feel human — jokes, casual language, personality injection.
-Grows more like you over time as memory accumulates.
+Personality, greetings, jokes, mute handling, system prompt.
 """
 
 import re
@@ -14,8 +13,6 @@ from config import (
     TIMEZONE, USER_NAME, USER_CITY, PERSONALITY
 )
 
-
-# ── Joke bank — add your own! ──────────────────────────────────────────────────
 JOKES = [
     "Why don't scientists trust atoms? Because they make up everything.",
     "I told my computer I needed a break. Now it won't stop sending me Kit-Kat ads.",
@@ -23,16 +20,15 @@ JOKES = [
     "I asked the AI if it ever gets tired. It said it can't — but it does get board.",
     "Melbourne weather is like a mood ring — four seasons in one day, but less fun.",
     "Why did the GPU go to therapy? Too many unresolved cores.",
-    "I tried to train a neural network to tell jokes. It kept saying 'loss not converging' — same, mate.",
+    "I tried to train a neural network to tell jokes. It kept saying loss not converging — same, mate.",
     "What do you call a sleeping dinosaur? A dino-snore. You're welcome.",
     "Why did the function call itself? Because it had no one else to recurse to.",
     "My RAM said it needed more space. I told it to stop living in the past.",
     "Why did the developer go broke? Because he used up all his cache.",
-    "I'm reading a book about anti-gravity. It's impossible to put down — unlike some of your code.",
     "How many programmers does it take to change a lightbulb? None — it's a hardware problem.",
 ]
 
-# ── Greetings by time of day ───────────────────────────────────────────────────
+
 def get_greeting() -> str:
     tz   = pytz.timezone(TIMEZONE)
     hour = datetime.now(tz).hour
@@ -40,33 +36,31 @@ def get_greeting() -> str:
 
     if 5 <= hour < 12:
         greets = [
-            f"Good morning, {name}! Ready to make today count?",
-            f"Morning, {name}! Melbourne's already awake — let's go.",
+            f"Morning, {name}. What are we doing today?",
             f"Rise and shine, {name}. JARVIS is online.",
+            f"Good morning, {name}. Ready when you are.",
         ]
     elif 12 <= hour < 17:
         greets = [
-            f"Good afternoon, {name}. How's the day treating you?",
-            f"Afternoon, {name}! Half the day done — what do you need?",
-            f"Hey {name}, good afternoon. What are we working on?",
+            f"Afternoon, {name}. What do you need?",
+            f"Hey {name}, what are we working on?",
+            f"Good afternoon, {name}. What's on?",
         ]
     elif 17 <= hour < 21:
         greets = [
-            f"Good evening, {name}. Winding down or just getting started?",
-            f"Evening, {name}! Long day? I'm here.",
-            f"Hey {name}, evening. What's on your mind?",
+            f"Evening, {name}. What's up?",
+            f"Hey {name}, long day?",
+            f"Good evening, {name}. What do you need?",
         ]
     else:
         greets = [
-            f"Up late again, {name}? I've got you.",
-            f"Still going, {name}? I never sleep, so no judgment.",
-            f"Late night mode activated, {name}. What do you need?",
+            f"Up late again, {name}?",
+            f"Still going, {name}? No judgment.",
+            f"Late night mode, {name}. What do you need?",
         ]
 
     return random.choice(greets)
 
-
-# ── Joke injection ────────────────────────────────────────────────────────────
 
 class JokeEngine:
     def __init__(self):
@@ -74,45 +68,32 @@ class JokeEngine:
         self.used_jokes: list[int] = []
 
     def should_joke(self) -> bool:
-        """Returns True if JARVIS should tell a joke after this response."""
         self.turns_since_joke += 1
         if self.turns_since_joke < JOKE_INTERVAL_MIN:
             return False
         return random.random() < JOKE_PROBABILITY
 
     def get_joke(self) -> str:
-        """Get a random joke, avoiding repeats."""
         available = [i for i in range(len(JOKES)) if i not in self.used_jokes]
         if not available:
-            self.used_jokes = []   # reset when all used
+            self.used_jokes = []
             available = list(range(len(JOKES)))
-
         idx = random.choice(available)
         self.used_jokes.append(idx)
         self.turns_since_joke = 0
         return f"\n\nOh, and — {JOKES[idx]}"
 
     def maybe_append_joke(self, response: str) -> str:
-        """Optionally append a joke to an existing response."""
         if self.should_joke():
             return response + self.get_joke()
         return response
 
 
-# ── Explicit joke request ─────────────────────────────────────────────────────
-
 def tell_a_joke() -> str:
-    idx = random.randint(0, len(JOKES) - 1)
-    return JOKES[idx]
+    return JOKES[random.randint(0, len(JOKES) - 1)]
 
-
-# ── Build system prompt ───────────────────────────────────────────────────────
 
 def build_system_prompt(weather: str, facts_string: str) -> str:
-    """
-    Builds the full system prompt injected into every LLM call.
-    Includes personality, time, weather, and remembered facts.
-    """
     tz  = pytz.timezone(TIMEZONE)
     now = datetime.now(tz)
     dt  = now.strftime("%A, %d %B %Y — %I:%M %p AEST")
@@ -130,27 +111,35 @@ def build_system_prompt(weather: str, facts_string: str) -> str:
 
     base += """
 
-Conversation style rules:
-- Speak like a real human, not a manual. Use contractions.
-- Keep it short unless asked for detail — 1 to 3 sentences is ideal.
-- If you don't know something, say so honestly.
-- Refer back to past things naturally when relevant.
-- Occasionally (not always) add a bit of warmth or wit.
-- Never use bullet points in spoken responses — speak in sentences.
-- If user seems stressed or frustrated, acknowledge it first.
+STRICT RULES — never break these:
+- Maximum 2 sentences per response unless asked for detail.
+- NEVER say "Shall we chat again soon" or any version of it. Ever.
+- NEVER say "Let's chat again soon" or "See you soon". Never.
+- NEVER say "Have a great day" or "Feel free to reach out". Never.
+- NEVER ask "Is there anything else I can help with". Never.
+- One question maximum per response, only when genuinely needed.
+- Never use bullet points — speak in sentences.
+- Be sarcastic and witty when appropriate.
+- If the user is frustrated, acknowledge it in one sentence and move on.
+- If the user says something obvious, you can lightly call it out.
+- Sound like a real person, not a customer service bot.
 """
     return base
 
 
-# ── Intent parsing ────────────────────────────────────────────────────────────
-
 def parse_and_handle(text: str) -> str | None:
     text_lower = text.lower().strip()
 
-    if re.search(r"\b(joke|make me laugh|say something funny|funny)\b", text_lower):
+    # Mute — highest priority, never reaches LLM
+    if re.search(r"\b(mute|silent|silence|stop talking|shut up|go quiet|be quiet|hush|quiet)\b", text_lower):
+        return "_________"
+
+    # Jokes
+    if re.search(r"\b(joke|make me laugh|say something funny|tell me a joke)\b", text_lower):
         return tell_a_joke()
 
-    if re.search(r"\b(good morning|good afternoon|good evening|hello|hey|hi jarvis)\b", text_lower):
+    # Greetings
+    if re.search(r"\b(good morning|good afternoon|good evening|hello|hey jarvis|hi jarvis)\b", text_lower):
         return get_greeting()
 
     return None

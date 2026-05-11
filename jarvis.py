@@ -1,8 +1,8 @@
 """
 jarvis.py — JARVIS V3 Main Brain.
-Files module removed — will be added in V4 with voice editing support.
 """
 
+import re
 import threading
 import ollama
 import numpy as np
@@ -77,6 +77,29 @@ class JARVIS:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
 
+    # ── Response cleaner ───────────────────────────────────────────────────────
+
+    def _clean_response(self, text: str) -> str:
+        """Strip annoying phrases the LLM keeps saying."""
+        bad_phrases = [
+            r"[Ss]hall we chat again soon[!?.]?",
+            r"[Ss]hall we chat again shortly[!?.]?",
+            r"[Ll]et'?s chat again soon[!?.]?",
+            r"[Ss]ee you (in the future|soon|later)[!?.]?",
+            r"[Hh]ave a great day[!?.]?",
+            r"[Ff]eel free to (reach out|contact me)[^.]*\.",
+            r"[Ii]f you need (further assistance|anything else)[^.]*\.",
+            r"[Pp]lease (let me know|feel free)[^.]*\.",
+            r"[Ii]'m here (to help|for you)[^.]*\.",
+            r"[Ii]s there anything else[^?]*\?",
+        ]
+        for pattern in bad_phrases:
+            text = re.sub(pattern, "", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        text = re.sub(r"\s+\.", ".", text)
+        text = re.sub(r"\.\.", ".", text)
+        return text.strip()
+
     # ── Main speech handler ────────────────────────────────────────────────────
 
     def on_speech(self, text: str, audio: np.ndarray):
@@ -95,6 +118,7 @@ class JARVIS:
         self.listener.pause()
 
         response = self._route(text)
+        response = self._clean_response(response)
         response = self.joke_engine.maybe_append_joke(response)
 
         print(f"[JARVIS] {response}\n")
@@ -105,9 +129,9 @@ class JARVIS:
 
         self.is_speaking   = True
         self._speak_thread = threading.Thread(
-            target  = self._speak_and_resume,
-            args    = (response,),
-            daemon  = True
+            target = self._speak_and_resume,
+            args   = (response,),
+            daemon = True
         )
         self._speak_thread.start()
 
@@ -127,12 +151,11 @@ class JARVIS:
         # Exit
         if any(w in text_lower for w in [
             "goodbye", "shut down", "exit jarvis",
-            "stop jarvis", "go offline"
+            "stop jarvis", "go offline", "bye bye"
         ]):
             self.running = False
             return f"Going offline. Take care of yourself, {USER_NAME}."
 
-        # Module pipeline — files removed, will return in V4
         handlers = [
             personality.parse_and_handle,
             self.todos.parse_and_handle,

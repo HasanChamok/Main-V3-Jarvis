@@ -2,7 +2,7 @@
 finetune/auto_train.py
 Background retraining watcher for JARVIS V3.
 """
-
+from config import MEMORY_FILE as _MEMORY_REL
 import json
 import os
 import sys
@@ -16,7 +16,7 @@ THIS_DIR = Path(__file__).parent.absolute()
 ROOT_DIR = THIS_DIR.parent
 
 sys.path.insert(0, str(ROOT_DIR))
-from config import MEMORY_FILE as _MEMORY_REL
+
 
 MEMORY_FILE       = ROOT_DIR / _MEMORY_REL
 LAST_TRAINED_FILE = THIS_DIR / "last_trained.json"
